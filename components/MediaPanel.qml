@@ -3,13 +3,18 @@ import QtQuick.Controls
 
 Rectangle {
     id: root
-    color: "#20242c"
 
-    property bool isPlaying: false
-    property string trackTitle: "Example Song"
-    property string artistName: "Example Artist"
-    property real progressValue: 72
-    property real durationValue: 245
+    color: "#20242c"
+    clip: true
+
+    property real progressValue: 0
+
+    property real durationValue:
+        mediaService.duration > 0
+        ? mediaService.duration
+        : 1
+
+    property double lastTickMs: 0
 
     function formatTime(seconds) {
         var mins = Math.floor(seconds / 60)
@@ -18,14 +23,88 @@ Rectangle {
         return mins + ":" + (secs < 10 ? "0" : "") + secs
     }
 
-    // Background / theme layer
+    Component.onCompleted: {
+        root.progressValue = mediaService.position || 0
+    }
+
+    // --------------------------------------------------
+    // Updates coming from Python
+    // --------------------------------------------------
+
+    Connections {
+        target: mediaService
+
+        function onPositionChanged() {
+            // Don't fight the user while they're dragging the slider
+            if (progressSlider.pressed)
+                return
+
+            var difference =
+                Math.abs(mediaService.position - root.progressValue)
+
+            if (difference > 1.25 || !mediaService.isPlaying) {
+                root.progressValue = mediaService.position
+            }
+        }
+
+        function onPlayingChanged() {
+            if (mediaService.isPlaying) {
+                root.lastTickMs = Date.now()
+            } else {
+                root.lastTickMs = 0
+                root.progressValue = mediaService.position
+            }
+        }
+    }
+
+    // --------------------------------------------------
+    // Smooth local playback clock
+    // --------------------------------------------------
+
+    Timer {
+        id: playbackTimer
+
+        interval: 100
+        repeat: true
+        running: mediaService.isPlaying
+
+        onTriggered: {
+            if (progressSlider.pressed)
+                return
+
+            var now = Date.now()
+
+            if (root.lastTickMs === 0) {
+                root.lastTickMs = now
+                return
+            }
+
+            var elapsedSeconds =
+                (now - root.lastTickMs) / 1000.0
+
+            root.lastTickMs = now
+
+            root.progressValue = Math.min(
+                root.durationValue,
+                root.progressValue + elapsedSeconds
+            )
+        }
+    }
+
+    // --------------------------------------------------
+    // Theme background
+    // --------------------------------------------------
+
     Rectangle {
         anchors.fill: parent
         color: "#20242c"
     }
 
-    // Album art placeholder
-    Rectangle {
+    // --------------------------------------------------
+    // Album artwork
+    // --------------------------------------------------
+
+    Item {
         id: albumArt
 
         width: 300
@@ -35,18 +114,47 @@ Rectangle {
         anchors.top: parent.top
         anchors.topMargin: 80
 
-        radius: 12
-        color: "#414650"
+        Rectangle {
+            anchors.fill: parent
 
-        Text {
-            anchors.centerIn: parent
-            text: "ALBUM ART"
-            color: "white"
-            font.pixelSize: 28
+            radius: 12
+            color: "#181B20"
+
+            visible: mediaService.artworkPath.length === 0
+
+            Image {
+                anchors.centerIn: parent
+
+                width: 120
+                height: 120
+
+                source: "../assets/icons/media/music-note.svg"
+                fillMode: Image.PreserveAspectFit
+
+                sourceSize.width: width * 4
+                sourceSize.height: height * 4
+
+                smooth: true
+                mipmap: true
+            }
+        }
+
+        Image {
+            anchors.fill: parent
+
+            source: mediaService.artworkPath
+
+            fillMode: Image.PreserveAspectCrop
+            smooth: true
+
+            visible: mediaService.artworkPath.length > 0
         }
     }
 
+    // --------------------------------------------------
     // Track title
+    // --------------------------------------------------
+
     Text {
         id: titleText
 
@@ -54,14 +162,28 @@ Rectangle {
         anchors.topMargin: 28
         anchors.horizontalCenter: parent.horizontalCenter
 
-        text: root.trackTitle
+        width: parent.width - 80
+
+        text:
+            mediaService.title.length > 0
+            ? mediaService.title
+            : "No Media Playing"
+
         color: "white"
 
         font.pixelSize: 30
         font.bold: true
+
+        horizontalAlignment: Text.AlignHCenter
+
+        elide: Text.ElideRight
+        maximumLineCount: 1
     }
 
+    // --------------------------------------------------
     // Artist
+    // --------------------------------------------------
+
     Text {
         id: artistText
 
@@ -69,17 +191,29 @@ Rectangle {
         anchors.topMargin: 8
         anchors.horizontalCenter: parent.horizontalCenter
 
-        text: root.artistName
+        width: parent.width - 80
+
+        text: mediaService.artist
+
         color: "#b9bec8"
 
         font.pixelSize: 20
+
+        horizontalAlignment: Text.AlignHCenter
+
+        elide: Text.ElideRight
+        maximumLineCount: 1
     }
 
-    // Progress bar
+    // --------------------------------------------------
+    // Progress slider
+    // --------------------------------------------------
+
     Slider {
         id: progressSlider
 
         width: parent.width - 300
+        height: 28
 
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: artistText.bottom
@@ -89,12 +223,58 @@ Rectangle {
         to: root.durationValue
         value: root.progressValue
 
+        // Background track
+        background: Rectangle {
+            x: progressSlider.leftPadding
+            y: progressSlider.topPadding +
+            progressSlider.availableHeight / 2 - height / 2
+
+            width: progressSlider.availableWidth
+            height: 8
+            radius: 4
+
+            color: "#555B64"
+
+            // Filled portion
+            Rectangle {
+                width: progressSlider.visualPosition * parent.width
+                height: parent.height
+                radius: parent.radius
+
+                color: "white"
+            }
+        }
+
+        // Invisible handle
+        handle: Item {
+            width: 0
+            height: 0
+        }
+
         onMoved: {
-            root.progressValue = value
+            if (mediaService.seekEnabled) {
+                root.progressValue = value
+            }
+        }
+
+        onPressedChanged: {
+            if (!pressed && mediaService.seekEnabled) {
+                mediaService.seekTo(value)
+            }
+        }
+
+        // Block interaction when seeking isn't available
+        MouseArea {
+            anchors.fill: parent
+            enabled: !mediaService.seekEnabled
+            acceptedButtons: Qt.AllButtons
         }
     }
 
-    // Time labels
+    // --------------------------------------------------
+    // Elapsed / remaining time
+    // --------------------------------------------------
+
     Row {
         id: timeRow
 
@@ -107,7 +287,9 @@ Rectangle {
         Text {
             width: parent.width / 2
 
-            text: root.formatTime(root.progressValue)
+            text: mediaService.duration > 0
+                ? root.formatTime(Math.floor(root.progressValue))
+                : ""
 
             color: "#b9bec8"
             font.pixelSize: 20
@@ -117,9 +299,16 @@ Rectangle {
         Text {
             width: parent.width / 2
 
-            text: "-" + root.formatTime(
-                      Math.max(0, root.durationValue - root.progressValue)
-                  )
+            text: mediaService.duration > 0
+                ? "-" + root.formatTime(
+                        Math.max(
+                            0,
+                            Math.ceil(
+                                root.durationValue - root.progressValue
+                            )
+                        )
+                    )
+                : ""
 
             color: "#b9bec8"
             font.pixelSize: 20
@@ -127,7 +316,10 @@ Rectangle {
         }
     }
 
-    // Controls
+    // --------------------------------------------------
+    // Playback controls
+    // --------------------------------------------------
+
     Row {
         id: controlsRow
 
@@ -141,12 +333,14 @@ Rectangle {
         IconButton {
             width: 72
             height: 72
+
             iconSize: 52
 
-            source: "../assets/icons/media/player-track-prev.svg"
+            source:
+                "../assets/icons/media/player-track-prev.svg"
 
             onClicked: {
-                console.log("Previous")
+                mediaService.previous()
             }
         }
 
@@ -154,15 +348,17 @@ Rectangle {
         IconButton {
             width: 88
             height: 88
+
             iconSize: 62
             iconYOffset: -5
 
-            source: root.isPlaying
+            source:
+                mediaService.isPlaying
                 ? "../assets/icons/media/player-pause.svg"
                 : "../assets/icons/media/player-play.svg"
 
             onClicked: {
-                root.isPlaying = !root.isPlaying
+                mediaService.toggle_play_pause()
             }
         }
 
@@ -170,25 +366,14 @@ Rectangle {
         IconButton {
             width: 72
             height: 72
+
             iconSize: 52
 
-            source: "../assets/icons/media/player-track-next.svg"
+            source:
+                "../assets/icons/media/player-track-next.svg"
 
             onClicked: {
-                console.log("Next")
-            }
-        }
-    }
-
-    // Fake playback timer
-    Timer {
-        interval: 1000
-        running: root.isPlaying
-        repeat: true
-
-        onTriggered: {
-            if (root.progressValue < root.durationValue) {
-                root.progressValue += 1
+                mediaService.next()
             }
         }
     }

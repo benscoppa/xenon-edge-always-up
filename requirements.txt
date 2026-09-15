@@ -1,2 +1,7 @@
 PySide6
 python-dotenv
+winrt-runtime
+winrt-Windows.Foundation
+winrt-Windows.Media.Control
+qasync
+winrt-Windows.Storage.Streams

@@ -26,6 +26,7 @@ Item {
         source: root.source
         fillMode: Image.PreserveAspectFit
 
+        // Render SVG at higher internal resolution
         sourceSize.width: root.iconSize * 4
         sourceSize.height: root.iconSize * 4
 
@@ -35,6 +36,11 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: root.clicked()
+
+        cursorShape: Qt.PointingHandCursor
+
+        onClicked: {
+            root.clicked()
+        }
     }
 }

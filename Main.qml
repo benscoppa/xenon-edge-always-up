@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+
 import "components"
 
 Window {
@@ -8,6 +9,7 @@ Window {
     property bool physicalPreview: false
 
     visible: true
+
     title: "XENEON Edge Preview"
     color: "black"
 
@@ -22,11 +24,14 @@ Window {
     Item {
         id: edgeCanvas
 
-        // Always design at the real XENEON Edge resolution
         width: 2560
         height: 720
 
-        scale: physicalPreview ? window.width / 2560 : 1.0
+        scale:
+            physicalPreview
+            ? window.width / 2560
+            : 1.0
+
         transformOrigin: Item.TopLeft
 
         Row {
