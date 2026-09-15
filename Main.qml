@@ -1,34 +1,56 @@
 import QtQuick
 import QtQuick.Window
+import "components"
 
 Window {
-    width: 2560
-    height: 720
+    id: window
 
-    minimumWidth: 2560
-    minimumHeight: 720
-    maximumWidth: 2560
-    maximumHeight: 720
+    property bool physicalPreview: false
 
     visible: true
     title: "XENEON Edge Preview"
+    color: "black"
 
-    color: "#101014"
+    width: physicalPreview ? 1518 : 2560
+    height: physicalPreview ? 427 : 720
 
-    Rectangle {
-        anchors.fill: parent
-        color: "#101014"
+    minimumWidth: width
+    minimumHeight: height
+    maximumWidth: width
+    maximumHeight: height
 
-        Text {
-            anchors.centerIn: parent
+    Item {
+        id: edgeCanvas
 
-            text: "2560 × 720\nXENEON EDGE PREVIEW"
-            color: "white"
+        // Always design at the real XENEON Edge resolution
+        width: 2560
+        height: 720
 
-            horizontalAlignment: Text.AlignHCenter
+        scale: physicalPreview ? window.width / 2560 : 1.0
+        transformOrigin: Item.TopLeft
 
-            font.pixelSize: 48
-            font.bold: true
+        Row {
+            anchors.fill: parent
+
+            DiscordPanel {
+                width: 220
+                height: parent.height
+            }
+
+            StatsPanel {
+                width: 1000
+                height: parent.height
+            }
+
+            ClockPanel {
+                width: 640
+                height: parent.height
+            }
+
+            MediaPanel {
+                width: 700
+                height: parent.height
+            }
         }
     }
 }
