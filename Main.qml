@@ -43,17 +43,17 @@ Window {
             }
 
             StatsPanel {
-                width: 1000
+                width: 1240
                 height: parent.height
             }
 
             ClockPanel {
-                width: 640
+                width: 600
                 height: parent.height
             }
 
             MediaPanel {
-                width: 700
+                width: 500
                 height: parent.height
             }
         }

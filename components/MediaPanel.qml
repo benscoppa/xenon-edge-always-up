@@ -155,29 +155,140 @@ Rectangle {
     // Track title
     // --------------------------------------------------
 
-    Text {
-        id: titleText
+    Item {
+        id: titleContainer
+
+        width: parent.width - 80
+        height: 40
 
         anchors.top: albumArt.bottom
         anchors.topMargin: 28
         anchors.horizontalCenter: parent.horizontalCenter
 
-        width: parent.width - 80
+        clip: true
 
-        text:
-            mediaService.title.length > 0
-            ? mediaService.title
-            : "No Media Playing"
+        property bool needsScroll:
+            titleText.contentWidth > titleContainer.width
 
-        color: "white"
+        property real scrollGap: 80
+        property real scrollOffset: 0
 
-        font.pixelSize: 30
-        font.bold: true
+        // Scroll tuning
+        property real scrollMsPerPixel: 16
+        property real slowdownDistance: 32
 
-        horizontalAlignment: Text.AlignHCenter
+        property real totalScrollDistance:
+            titleText.width + scrollGap
 
-        elide: Text.ElideRight
-        maximumLineCount: 1
+        // Normal centered title when it fits
+        Text {
+            id: centeredTitle
+
+            anchors.centerIn: parent
+
+            visible: !titleContainer.needsScroll
+
+            text: mediaService.title.length > 0
+                ? mediaService.title
+                : "No Media Playing"
+
+            color: "white"
+
+            font.pixelSize: 30
+            font.bold: true
+        }
+
+        // Moving content for long titles
+        Item {
+            id: marqueeContent
+
+            visible: titleContainer.needsScroll
+
+            x: -titleContainer.scrollOffset
+            height: parent.height
+
+            Text {
+                id: titleText
+
+                anchors.verticalCenter: parent.verticalCenter
+
+                text: mediaService.title
+
+                color: "white"
+
+                font.pixelSize: 30
+                font.bold: true
+            }
+
+            Text {
+                id: titleTextCopy
+
+                anchors.left: titleText.right
+                anchors.leftMargin: titleContainer.scrollGap
+                anchors.verticalCenter: parent.verticalCenter
+
+                text: titleText.text
+
+                color: titleText.color
+
+                font.pixelSize: titleText.font.pixelSize
+                font.bold: titleText.font.bold
+            }
+        }
+
+        SequentialAnimation {
+            id: marqueeAnimation
+
+            loops: Animation.Infinite
+            running: titleContainer.needsScroll
+
+            // Pause at the normal starting position
+            PauseAnimation {
+                duration: 3000
+            }
+
+            // Constant-speed portion
+            NumberAnimation {
+                target: titleContainer
+                property: "scrollOffset"
+
+                from: 0
+
+                to:
+                    titleContainer.totalScrollDistance
+                    - titleContainer.slowdownDistance
+
+                duration:
+                    (
+                        titleContainer.totalScrollDistance
+                        - titleContainer.slowdownDistance
+                    )
+                    * titleContainer.scrollMsPerPixel
+
+                easing.type: Easing.Linear
+            }
+
+            // Final short slowdown
+            NumberAnimation {
+                target: titleContainer
+                property: "scrollOffset"
+
+                to: titleContainer.totalScrollDistance
+
+                duration:
+                    titleContainer.slowdownDistance
+                    * titleContainer.scrollMsPerPixel
+                    * 2
+
+                easing.type: Easing.OutQuad
+            }
+
+            // Invisible reset because the second copy is now
+            // in exactly the same position as the first copy was
+            ScriptAction {
+                script: titleContainer.scrollOffset = 0
+            }
+        }
     }
 
     // --------------------------------------------------
@@ -187,7 +298,7 @@ Rectangle {
     Text {
         id: artistText
 
-        anchors.top: titleText.bottom
+        anchors.top: titleContainer.bottom
         anchors.topMargin: 8
         anchors.horizontalCenter: parent.horizontalCenter
 
@@ -212,7 +323,7 @@ Rectangle {
     Slider {
         id: progressSlider
 
-        width: parent.width - 300
+        width: 350
         height: 28
 
         anchors.horizontalCenter: parent.horizontalCenter
@@ -281,7 +392,7 @@ Rectangle {
         width: progressSlider.width
 
         anchors.top: progressSlider.bottom
-        anchors.topMargin: 2
+        anchors.topMargin: -4
         anchors.horizontalCenter: parent.horizontalCenter
 
         Text {
