@@ -38,12 +38,12 @@ Window {
             anchors.fill: parent
 
             DiscordPanel {
-                width: 220
+                width: 320
                 height: parent.height
             }
 
             StatsPanel {
-                width: 1240
+                width: 1140
                 height: parent.height
             }
 
